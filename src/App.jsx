@@ -1,47 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const APP_NAME = "Three Great Questions";
 const APP_SUBTITLE = "(and one subjective one)";
 
-const SAMPLE_QUESTIONS = [
-  {
-    id: 1,
-    type: 'trivia',
-    question: 'What is the only planet in our solar system that rotates on its side?',
-    answer: 'Uranus',
-    category: 'Science',
-    difficulty: 2,
-    fun: 4,
-    explanation: 'Uranus has an axial tilt of 98 degrees, meaning it essentially rolls around the sun on its side. Scientists believe a massive collision billions of years ago knocked it over.'
-  },
-  {
-    id: 2,
-    type: 'trivia',
-    question: 'In what year did the Berlin Wall fall?',
-    answer: '1989',
-    category: 'History',
-    difficulty: 2,
-    fun: 3,
-    explanation: 'The Berlin Wall fell on November 9, 1989, after 28 years of dividing the city. A miscommunicated announcement led to crowds overwhelming the checkpoints that same evening.'
-  },
-  {
-    id: 3,
-    type: 'trivia',
-    question: 'Who wrote the novel Frankenstein?',
-    answer: 'Mary Shelley',
-    category: 'Literature',
-    difficulty: 2,
-    fun: 4,
-    explanation: 'Mary Shelley wrote Frankenstein in 1818 at just 18 years old, during a rainy summer in Geneva on a dare from Lord Byron to write a ghost story.'
-  },
-  {
-    id: 4,
-    type: 'subjective',
-    question: "What's your ideal Sunday morning?",
-    category: 'Lifestyle',
-    options: ['Sleeping in late', 'Coffee and a long read', 'Brunch with friends', 'Getting outside early']
-  }
-];
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?output=csv";
+
+async function fetchQuestions(sheetUrl) {
+  const response = await fetch(sheetUrl);
+  const text = await response.text();
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+  return lines.slice(1).map(line => {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        inQuotes = !inQuotes;
+      } else if (line[i] === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += line[i];
+      }
+    }
+    values.push(current.trim());
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
+    return obj;
+  }).filter(r => r.question && r.status === 'app-ready');
+}
 
 function normalize(str) {
   return str.toLowerCase().trim().replace(/[^a-z0-9]/g, '').replace(/\s+/g, '');
@@ -59,11 +47,8 @@ function levenshtein(a, b) {
 function checkAnswer(input, question) {
   const userAnswer = normalize(input);
   if (!userAnswer) return false;
-
-  const targets = [question.answer, ...(question.aliases ? question.aliases.split(',') : [])].map(normalize);
-
+  const targets = [question.answer, ...(question.aliases ? question.aliases.split('|') : [])].map(normalize);
   const isNumeric = targets.some(t => /^\d+$/.test(t));
-
   for (const target of targets) {
     if (isNumeric) {
       if (userAnswer === target) return true;
@@ -79,7 +64,30 @@ export default function App() {
   const [screen, setScreen] = useState('home');
   const [currentQ, setCurrentQ] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
+  const [questions, setQuestions] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  useEffect(() => {
+    fetchQuestions(SHEET_URL)
+      .then(rows => {
+        const trivia = rows.filter(q => q.type === 'trivia');
+        const subjective = rows.filter(q => q.type === 'subjective');
+        if (trivia.length < 3 || subjective.length < 1) {
+          setError('Not enough app-ready questions in the sheet yet.');
+          return;
+        }
+        const scored = trivia
+          .map(q => ({ ...q, _score: (parseFloat(q.fun) || 3) + (parseFloat(q.difficulty) || 3) + Math.random() }))
+          .sort((a, b) => b._score - a._score);
+        const top3 = scored.slice(0, 3);
+        const subj = subjective[Math.floor(Math.random() * subjective.length)];
+        setQuestions([...top3, subj]);
+      })
+      .catch(() => setError('Could not load questions. Check the sheet URL.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   function handleStart() {
     setCurrentQ(0);
@@ -90,12 +98,26 @@ export default function App() {
   function handleAnswer(answer) {
     const newAnswers = [...userAnswers, answer];
     setUserAnswers(newAnswers);
-    if (currentQ < SAMPLE_QUESTIONS.length - 1) {
+    if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
       setScreen('results');
     }
   }
+
+  if (loading) return (
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{APP_NAME}</h1>
+      <p style={{ color: '#888', marginTop: '2rem' }}>Loading today's questions...</p>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{APP_NAME}</h1>
+      <p style={{ color: '#cc4444', marginTop: '2rem' }}>{error}</p>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
@@ -109,16 +131,16 @@ export default function App() {
       )}
       {screen === 'questions' && (
         <QuestionScreen
-        key={currentQ}
-        question={SAMPLE_QUESTIONS[currentQ]}
-        questionNumber={currentQ + 1}
-        total={SAMPLE_QUESTIONS.length}
-        onAnswer={handleAnswer}
-      />
+          key={currentQ}
+          question={questions[currentQ]}
+          questionNumber={currentQ + 1}
+          total={questions.length}
+          onAnswer={handleAnswer}
+        />
       )}
       {screen === 'results' && (
         <ResultsScreen
-          questions={SAMPLE_QUESTIONS}
+          questions={questions}
           userAnswers={userAnswers}
           onHome={() => setScreen('home')}
         />
@@ -141,7 +163,6 @@ function HomeScreen({ today, onStart }) {
         <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>Today's set is ready.</p>
         <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6 }}>
           3 trivia questions + 1 subjective prompt.<br />
-          Takes about 2–3 minutes.
         </p>
       </div>
       <div style={{ display: 'flex', gap: 16, marginBottom: '1.5rem' }}>
@@ -170,6 +191,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
   const [selected, setSelected] = useState(null);
   const isSubjective = question.type === 'subjective';
   const isTrivia = question.type === 'trivia';
+  const options = question.options ? question.options.split('|').map(o => o.trim()).filter(Boolean) : [];
 
   function handleSubmit() {
     if (isTrivia && !input.trim()) return;
@@ -234,7 +256,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
 
       {isSubjective && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1rem' }}>
-          {question.options.map(opt => (
+          {options.map(opt => (
             <button
               key={opt}
               onClick={() => setSelected(opt)}
@@ -296,6 +318,8 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
   const triviaAnswers = userAnswers.slice(0, 3);
   const score = triviaQuestions.reduce((acc, q, i) => acc + (checkAnswer(triviaAnswers[i] || '', q) ? 1 : 0), 0);
   const subjAnswer = userAnswers[3];
+  const subjQuestion = questions.find(q => q.type === 'subjective');
+
   const emojiRow = [
     ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥'),
     '🎭'
@@ -308,6 +332,7 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   }
+
   return (
     <div>
       <div style={{
@@ -359,21 +384,23 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
         );
       })}
 
-<div style={{
-        background: '#f8f6ff',
-        border: '1px solid #e8e4ff',
-        borderRadius: 12,
-        padding: '1.25rem',
-        marginBottom: '1rem'
-      }}>
-        <p style={{ fontSize: '0.8rem', color: '#6655cc', marginBottom: 6 }}>subjective question</p>
-        <p style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>
-          {questions[3].question}
-        </p>
-        <p style={{ fontSize: '0.85rem', color: '#555' }}>
-          You chose: <span style={{ fontWeight: 600 }}>{subjAnswer}</span>
-        </p>
-      </div>
+      {subjQuestion && (
+        <div style={{
+          background: '#f8f6ff',
+          border: '1px solid #e8e4ff',
+          borderRadius: 12,
+          padding: '1.25rem',
+          marginBottom: '1rem'
+        }}>
+          <p style={{ fontSize: '0.8rem', color: '#6655cc', marginBottom: 6 }}>subjective question</p>
+          <p style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>
+            {subjQuestion.question}
+          </p>
+          <p style={{ fontSize: '0.85rem', color: '#555' }}>
+            You chose: <span style={{ fontWeight: 600 }}>{subjAnswer}</span>
+          </p>
+        </div>
+      )}
 
       <div style={{
         background: '#f5f5f2',
@@ -418,6 +445,7 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
     </div>
   );
 }
+
 function StatPill({ label, value }) {
   return (
     <div style={{
