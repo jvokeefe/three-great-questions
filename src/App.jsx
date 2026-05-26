@@ -59,10 +59,18 @@ function levenshtein(a, b) {
 function checkAnswer(input, question) {
   const userAnswer = normalize(input);
   if (!userAnswer) return false;
+
   const targets = [question.answer, ...(question.aliases ? question.aliases.split(',') : [])].map(normalize);
+
+  const isNumeric = targets.some(t => /^\d+$/.test(t));
+
   for (const target of targets) {
-    if (userAnswer === target) return true;
-    if (levenshtein(userAnswer, target) <= Math.max(1, Math.floor(target.length * 0.2))) return true;
+    if (isNumeric) {
+      if (userAnswer === target) return true;
+    } else {
+      if (userAnswer === target) return true;
+      if (levenshtein(userAnswer, target) <= Math.max(1, Math.floor(target.length * 0.2))) return true;
+    }
   }
   return false;
 }
