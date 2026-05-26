@@ -283,11 +283,23 @@ function ProgressBar({ current, total }) {
 }
 
 function ResultsScreen({ questions, userAnswers, onHome }) {
+  const [copied, setCopied] = useState(false);
   const triviaQuestions = questions.filter(q => q.type === 'trivia');
   const triviaAnswers = userAnswers.slice(0, 3);
   const score = triviaQuestions.reduce((acc, q, i) => acc + (checkAnswer(triviaAnswers[i] || '', q) ? 1 : 0), 0);
   const subjAnswer = userAnswers[3];
+  const emojiRow = [
+    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥'),
+    '🎭'
+  ].join(' ');
 
+  const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nthree-great-questions.vercel.app`;
+
+  function copyShare() {
+    navigator.clipboard.writeText(shareText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
   return (
     <div>
       <div style={{
@@ -339,7 +351,7 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
         );
       })}
 
-      <div style={{
+<div style={{
         background: '#f8f6ff',
         border: '1px solid #e8e4ff',
         borderRadius: 12,
@@ -355,7 +367,34 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
         </p>
       </div>
 
-      <button onClick={onHome} style={{
+      <div style={{
+        background: '#f5f5f2',
+        borderRadius: 12,
+        padding: '1.25rem',
+        marginBottom: '0.75rem',
+        fontFamily: 'monospace',
+        fontSize: '0.85rem',
+        lineHeight: 1.8,
+        whiteSpace: 'pre-wrap'
+      }}>{shareText}</div>
+
+      <button type="button" onClick={copyShare} style={{
+        width: '100%',
+        padding: '0.875rem',
+        background: copied ? '#2a9d6a' : '#fff',
+        color: copied ? '#fff' : '#1a1a1a',
+        border: copied ? '1.5px solid #2a9d6a' : '1.5px solid #ddd',
+        borderRadius: 10,
+        fontSize: '1rem',
+        fontWeight: 600,
+        cursor: 'pointer',
+        marginBottom: '0.75rem',
+        transition: 'background 0.2s, color 0.2s, border 0.2s'
+      }}>
+        {copied ? '✓ Copied!' : 'Copy results'}
+      </button>
+
+      <button type="button" onClick={onHome} style={{
         width: '100%',
         padding: '0.875rem',
         background: '#1a1a1a',
@@ -371,7 +410,6 @@ function ResultsScreen({ questions, userAnswers, onHome }) {
     </div>
   );
 }
-
 function StatPill({ label, value }) {
   return (
     <div style={{
