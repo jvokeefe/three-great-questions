@@ -79,24 +79,47 @@ async function getTodaySet(allQuestions) {
     ];
   }
 
-  const scored = trivia
-    .map((q, i) => ({ ...q, _index: i, _score: (parseFloat(q.fun) || 3) + (parseFloat(q.difficulty) || 3) + Math.random() }))
+  // Pull out any scheduled questions for today
+  const scheduledTrivia = trivia.filter(q => q.scheduled_date === today);
+  const scheduledSubj = subjective.filter(q => q.scheduled_date === today);
+
+  // Fill remaining trivia slots with scored selection
+  const unscheduledTrivia = trivia.filter(q => q.scheduled_date !== today);
+  const scored = unscheduledTrivia
+    .map((q, i) => ({ 
+      ...q, 
+      _index: trivia.indexOf(q),
+      _score: (parseFloat(q.fun) || 3) + (parseFloat(q.difficulty) || 3) + Math.random() 
+    }))
     .sort((a, b) => b._score - a._score);
 
-  const top3 = scored.slice(0, 3);
-  const subjIndex = Math.floor(Math.random() * subjective.length);
+  // Build final trivia set: scheduled first, then fill to 3
+  const scheduledWithIndex = scheduledTrivia.map(q => ({ ...q, _index: trivia.indexOf(q) }));
+  const needed = 3 - scheduledWithIndex.length;
+  const fillerTrivia = scored.slice(0, Math.max(needed, 0));
+  const finalTrivia = [...scheduledWithIndex, ...fillerTrivia].slice(0, 3);
+
+  // Pick subjective — scheduled takes priority
+  const unscheduledSubj = subjective.filter(q => q.scheduled_date !== today);
+  const finalSubj = scheduledSubj.length > 0
+    ? { ...scheduledSubj[0], _index: subjective.indexOf(scheduledSubj[0]) }
+    : { ...unscheduledSubj[Math.floor(Math.random() * unscheduledSubj.length)], _index: subjective.indexOf(unscheduledSubj[0]) };
 
   await supabase.from('daily_sets').insert({
     set_date: today,
-    q1_index: top3[0]._index,
-    q2_index: top3[1]._index,
-    q3_index: top3[2]._index,
-    subj_index: subjIndex
+    q1_index: finalTrivia[0]._index,
+    q2_index: finalTrivia[1]._index,
+    q3_index: finalTrivia[2]._index,
+    subj_index: finalSubj._index
   });
 
-  return [top3[0], top3[1], top3[2], subjective[subjIndex]];
+  return [
+    trivia[finalTrivia[0]._index],
+    trivia[finalTrivia[1]._index],
+    trivia[finalTrivia[2]._index],
+    subjective[finalSubj._index]
+  ];
 }
-
 async function getStreak(sessionId) {
   const { data } = await supabase
     .from('user_streaks')
