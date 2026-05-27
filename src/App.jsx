@@ -17,11 +17,8 @@ function getSessionId() {
 
 function getTodayKey() {
   const now = new Date();
-  // Shift time back by 6 hours EST (UTC-5) or 7 hours EDT (UTC-4)
-  // Using UTC-5 as base (EST), adjust for daylight saving
   const estOffset = isDaylightSaving(now) ? 4 : 5;
   const estTime = new Date(now.getTime() - estOffset * 60 * 60 * 1000);
-  // Subtract 6 hours so day rolls over at 6 AM EST
   const adjustedTime = new Date(estTime.getTime() - 6 * 60 * 60 * 1000);
   return adjustedTime.toISOString().slice(0, 10);
 }
@@ -79,27 +76,22 @@ async function getTodaySet(allQuestions) {
     ];
   }
 
-  // Pull out any scheduled questions for today
   const scheduledTrivia = trivia.filter(q => q.scheduled_date === today);
   const scheduledSubj = subjective.filter(q => q.scheduled_date === today);
-
-  // Fill remaining trivia slots with scored selection
   const unscheduledTrivia = trivia.filter(q => q.scheduled_date !== today);
   const scored = unscheduledTrivia
-    .map((q, i) => ({ 
-      ...q, 
+    .map((q) => ({
+      ...q,
       _index: trivia.indexOf(q),
-      _score: (parseFloat(q.fun) || 3) + (parseFloat(q.difficulty) || 3) + Math.random() 
+      _score: (parseFloat(q.fun) || 3) + (parseFloat(q.difficulty) || 3) + Math.random()
     }))
     .sort((a, b) => b._score - a._score);
 
-  // Build final trivia set: scheduled first, then fill to 3
   const scheduledWithIndex = scheduledTrivia.map(q => ({ ...q, _index: trivia.indexOf(q) }));
   const needed = 3 - scheduledWithIndex.length;
   const fillerTrivia = scored.slice(0, Math.max(needed, 0));
   const finalTrivia = [...scheduledWithIndex, ...fillerTrivia].slice(0, 3);
 
-  // Pick subjective — scheduled takes priority
   const unscheduledSubj = subjective.filter(q => q.scheduled_date !== today);
   const finalSubj = scheduledSubj.length > 0
     ? { ...scheduledSubj[0], _index: subjective.indexOf(scheduledSubj[0]) }
@@ -120,6 +112,7 @@ async function getTodaySet(allQuestions) {
     subjective[finalSubj._index]
   ];
 }
+
 async function getStreak(sessionId) {
   const { data } = await supabase
     .from('user_streaks')
@@ -183,7 +176,6 @@ async function saveResponse(sessionId, questions, userAnswers, score) {
     q4_choice: userAnswers[3],
     score
   }, { onConflict: 'session_id,set_date' });
-  console.log('Supabase upsert result:', result);
   return result;
 }
 
@@ -196,6 +188,14 @@ async function getTodayResponse(sessionId) {
     .eq('set_date', today)
     .maybeSingle();
   return data;
+}
+
+async function getAllResponses(sessionId) {
+  const { data } = await supabase
+    .from('user_responses')
+    .select('*')
+    .eq('session_id', sessionId);
+  return data || [];
 }
 
 function normalize(str) {
@@ -229,40 +229,49 @@ function checkAnswer(input, question) {
 
 export default function App() {
   const [screen, setScreen] = useState('home');
-  const [finalAnswers, setFinalAnswers] = useState([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
+  const [finalAnswers, setFinalAnswers] = useState([]);
   const [questions, setQuestions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [streakData, setStreakData] = useState({ streak: 0, best_streak: 0 });
   const [alreadyPlayed, setAlreadyPlayed] = useState(false);
   const [todayResponse, setTodayResponse] = useState(null);
+  const [correctPct, setCorrectPct] = useState(null);
   const sessionId = getSessionId();
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
     async function init() {
-
       try {
-        const [allQuestions, streak, response] = await Promise.all([
+        const [allQuestions, streak, response, allResponses] = await Promise.all([
           fetchQuestions(SHEET_URL),
           getStreak(sessionId),
-          getTodayResponse(sessionId)
+          getTodayResponse(sessionId),
+          getAllResponses(sessionId)
         ]);
 
         const todaySet = await getTodaySet(allQuestions);
         setQuestions(todaySet);
         setStreakData(streak);
 
+        if (allResponses.length > 0) {
+          const totalCorrect = allResponses.reduce((acc, r) => {
+            return acc + [r.q1_accepted, r.q2_accepted, r.q3_accepted].filter(Boolean).length;
+          }, 0);
+          const totalAnswered = allResponses.length * 3;
+          setCorrectPct(Math.round((totalCorrect / totalAnswered) * 100));
+        }
+
         if (response) {
           setAlreadyPlayed(true);
           setTodayResponse(response);
         }
-      }  catch (e) {
+      } catch (e) {
         console.error('Init error:', e);
         setError('Something went wrong loading the app.');
-      }finally {
+      } finally {
         setLoading(false);
       }
     }
@@ -276,7 +285,6 @@ export default function App() {
   }
 
   async function handleAnswer(answer) {
-    console.log('handleAnswer called, currentQ:', currentQ, 'questions.length:', questions.length);
     const newAnswers = [...userAnswers, answer];
     setUserAnswers(newAnswers);
     if (currentQ < questions.length - 1) {
@@ -284,14 +292,10 @@ export default function App() {
     } else {
       const triviaQs = questions.filter(q => q.type === 'trivia');
       const score = triviaQs.reduce((acc, q, i) => acc + (checkAnswer(newAnswers[i] || '', q) ? 1 : 0), 0);
-      console.log('Final answers:', newAnswers);
-      console.log('Score:', score);
-      const [saveResult, streakResult] = await Promise.all([
+      const [, streakResult] = await Promise.all([
         saveResponse(sessionId, questions, newAnswers, score),
         updateStreak(sessionId)
       ]);
-      console.log('Save result:', saveResult);
-      console.log('Streak result:', streakResult);
       setStreakData(streakResult);
       setFinalAnswers(newAnswers);
       setAlreadyPlayed(true);
@@ -301,9 +305,20 @@ export default function App() {
   }
 
   if (loading) return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{APP_NAME}</h1>
-      <p style={{ color: '#888', marginTop: '2rem' }}>Loading today's questions...</p>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '2rem 1.25rem',
+      textAlign: 'center'
+    }}>
+      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 8 }}>{APP_NAME}</h1>
+      <p style={{ color: '#888', fontSize: '0.95rem' }}>{APP_SUBTITLE}</p>
+      <p style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '2rem' }}>
+        Get ready for the best part of the day!
+      </p>
     </div>
   );
 
@@ -316,9 +331,9 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.3 }}>{APP_NAME}</h1>
-        <p style={{ color: '#888', fontSize: '0.95rem', marginTop: 2 }}>{APP_SUBTITLE}</p>
+        <p style={{ color: '#888', fontSize: '0.95rem', marginTop: 4 }}>{APP_SUBTITLE}</p>
       </div>
 
       {screen === 'home' && (
@@ -328,7 +343,7 @@ export default function App() {
           streakData={streakData}
           alreadyPlayed={alreadyPlayed}
           todayResponse={todayResponse}
-          questions={questions}
+          correctPct={correctPct}
         />
       )}
       {screen === 'questions' && (
@@ -352,38 +367,41 @@ export default function App() {
   );
 }
 
-function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, questions }) {
+function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, correctPct }) {
   return (
     <div>
-      <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '1.5rem' }}>{today}</p>
+      <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '1.5rem', textAlign: 'center' }}>{today}</p>
 
       <div style={{
         background: '#fff',
         border: '1px solid #e8e8e4',
         borderRadius: 12,
         padding: '1.5rem',
-        marginBottom: '1.5rem'
+        marginBottom: '1.5rem',
+        textAlign: 'center'
       }}>
         {alreadyPlayed ? (
           <>
             <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>You've played today!</p>
-            <p style={{ fontSize: '2rem', fontWeight: 700, marginBottom: 4 }}>{todayResponse.score}/3</p>
+            <p style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: 4 }}>{todayResponse.score}/3</p>
             <p style={{ fontSize: '0.9rem', color: '#666' }}>Come back tomorrow for a new set.</p>
           </>
         ) : (
           <>
-            <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>Today's set is ready.</p>
+            <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 6 }}>Today's set is ready.</p>
             <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6 }}>
-              3 trivia questions + 1 subjective prompt.<br />
-              Takes about 2–3 minutes.
+              3 trivia questions + 1 subjective prompt.
             </p>
           </>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: '1.5rem' }}>
-        <StatPill label="Streak" value={`${streakData.streak || 0} days`} />
-        <StatPill label="Best" value={`${streakData.best_streak || 0} days`} />
+      <div style={{ display: 'flex', gap: 10, marginBottom: '1.5rem' }}>
+        <StatPill label="Current streak" value={`${streakData.streak || 0} days`} />
+        <StatPill label="Longest streak" value={`${streakData.best_streak || 0} days`} />
+        {correctPct !== null && (
+          <StatPill label="Correct %" value={`${correctPct}%`} />
+        )}
       </div>
 
       {!alreadyPlayed && (
@@ -408,6 +426,7 @@ function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, 
 function QuestionScreen({ question, questionNumber, total, onAnswer }) {
   const [input, setInput] = useState('');
   const [selected, setSelected] = useState(null);
+  const [animating, setAnimating] = useState(false);
   const isSubjective = question.type === 'subjective';
   const isTrivia = question.type === 'trivia';
   const options = question.options ? question.options.split('|').map(o => o.trim()).filter(Boolean) : [];
@@ -415,11 +434,19 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
   function handleSubmit() {
     if (isTrivia && !input.trim()) return;
     if (isSubjective && !selected) return;
-    onAnswer(isTrivia ? input.trim() : selected);
+    setAnimating(true);
+    setTimeout(() => {
+      onAnswer(isTrivia ? input.trim() : selected);
+      setAnimating(false);
+    }, 200);
   }
 
   return (
-    <div>
+    <div style={{
+      opacity: animating ? 0 : 1,
+      transform: animating ? 'translateY(8px)' : 'translateY(0)',
+      transition: 'opacity 0.2s, transform 0.2s'
+    }}>
       <ProgressBar current={questionNumber} total={total} />
 
       <div style={{ marginBottom: '0.75rem', display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -485,7 +512,8 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
                 borderRadius: 10,
                 background: selected === opt ? '#f5f5f2' : '#fff',
                 cursor: 'pointer',
-                fontWeight: selected === opt ? 600 : 400
+                fontWeight: selected === opt ? 600 : 400,
+                transition: 'all 0.15s'
               }}
             >{opt}</button>
           ))}
@@ -505,7 +533,8 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
           fontSize: '1rem',
           fontWeight: 600,
           cursor: 'pointer',
-          opacity: (isTrivia ? !input.trim() : !selected) ? 0.35 : 1
+          opacity: (isTrivia ? !input.trim() : !selected) ? 0.35 : 1,
+          transition: 'opacity 0.15s'
         }}
       >
         {questionNumber === 4 ? 'See results →' : 'Next question →'}
@@ -522,7 +551,8 @@ function ProgressBar({ current, total }) {
           flex: 1,
           height: 4,
           borderRadius: 2,
-          background: i < current ? '#1a1a1a' : '#e0e0da'
+          background: i < current ? '#1a1a1a' : '#e0e0da',
+          transition: 'background 0.3s'
         }} />
       ))}
     </div>
@@ -674,10 +704,11 @@ function StatPill({ label, value }) {
       flex: 1,
       background: '#f5f5f2',
       borderRadius: 10,
-      padding: '0.75rem 1rem'
+      padding: '0.75rem 1rem',
+      textAlign: 'center'
     }}>
-      <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: 2 }}>{label}</p>
-      <p style={{ fontSize: '1rem', fontWeight: 600 }}>{value}</p>
+      <p style={{ fontSize: '0.7rem', color: '#888', marginBottom: 2 }}>{label}</p>
+      <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{value}</p>
     </div>
   );
 }
