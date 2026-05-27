@@ -4,7 +4,8 @@ import { supabase } from './supabase';
 const APP_NAME = "Three Great Questions";
 const APP_SUBTITLE = "(and one subjective one)";
 
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?output=csv";
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=0&single=true&output=csv";
+const TAGLINES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=1892637865&single=true&output=csv";
 
 function getSessionId() {
   let id = localStorage.getItem('tgq_session_id');
@@ -54,6 +55,22 @@ async function fetchQuestions(sheetUrl) {
     headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
     return obj;
   }).filter(r => r.question && r.status === 'app-ready');
+}
+
+async function fetchTagline() {
+  const today = getTodayKey();
+  const response = await fetch(TAGLINES_URL);
+  const text = await response.text();
+  const lines = text.trim().split(/\r?\n/);
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+  const rows = lines.slice(1).map(line => {
+    const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+    return obj;
+  });
+  const match = rows.find(r => r.tagline_date === today);
+  return match ? match.tagline : null;
 }
 
 async function getTodaySet(allQuestions) {
@@ -198,6 +215,37 @@ async function getAllResponses(sessionId) {
   return data || [];
 }
 
+async function getYesterdaySubjectiveWinner() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from('user_responses')
+    .select('q4_choice')
+    .eq('set_date', yesterdayKey);
+
+  if (!data || data.length === 0) return null;
+
+  const counts = {};
+  data.forEach(r => {
+    if (r.q4_choice) counts[r.q4_choice] = (counts[r.q4_choice] || 0) + 1;
+  });
+
+  const winner = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const total = data.length;
+  return winner ? { choice: winner[0], count: winner[1], total, pct: Math.round((winner[1] / total) * 100) } : null;
+}
+
+function getSubjectiveComment(question, winningChoice) {
+  if (!question || !winningChoice) return null;
+  const options = question.options ? question.options.split('|').map(o => o.trim()) : [];
+  const index = options.findIndex(o => o === winningChoice);
+  if (index === -1) return null;
+  const commentKey = `comment_${index + 1}`;
+  return question[commentKey] || null;
+}
+
 function normalize(str) {
   return str.toLowerCase().trim().replace(/[^a-z0-9]/g, '').replace(/\s+/g, '');
 }
@@ -239,22 +287,47 @@ export default function App() {
   const [alreadyPlayed, setAlreadyPlayed] = useState(false);
   const [todayResponse, setTodayResponse] = useState(null);
   const [correctPct, setCorrectPct] = useState(null);
+  const [tagline, setTagline] = useState(null);
+  const [yesterdayResult, setYesterdayResult] = useState(null);
   const sessionId = getSessionId();
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   useEffect(() => {
     async function init() {
       try {
-        const [allQuestions, streak, response, allResponses] = await Promise.all([
+        const [allQuestions, streak, response, allResponses, taglineText, yesterdayWinner] = await Promise.all([
           fetchQuestions(SHEET_URL),
           getStreak(sessionId),
           getTodayResponse(sessionId),
-          getAllResponses(sessionId)
+          getAllResponses(sessionId),
+          fetchTagline(),
+          getYesterdaySubjectiveWinner()
         ]);
 
         const todaySet = await getTodaySet(allQuestions);
         setQuestions(todaySet);
         setStreakData(streak);
+        setTagline(taglineText);
+
+        if (yesterdayWinner) {
+          const yesterdayKey = (() => {
+            const y = new Date();
+            y.setDate(y.getDate() - 1);
+            return y.toISOString().slice(0, 10);
+          })();
+          const { data: yesterdaySet } = await supabase
+            .from('daily_sets')
+            .select('*')
+            .eq('set_date', yesterdayKey)
+            .maybeSingle();
+
+          if (yesterdaySet) {
+            const subjective = allQuestions.filter(q => q.type === 'subjective');
+            const yesterdaySubjQ = subjective[yesterdaySet.subj_index];
+            const comment = getSubjectiveComment(yesterdaySubjQ, yesterdayWinner.choice);
+            setYesterdayResult({ ...yesterdayWinner, comment, question: yesterdaySubjQ?.question });
+          }
+        }
 
         if (allResponses.length > 0) {
           const totalCorrect = allResponses.reduce((acc, r) => {
@@ -344,6 +417,8 @@ export default function App() {
           alreadyPlayed={alreadyPlayed}
           todayResponse={todayResponse}
           correctPct={correctPct}
+          tagline={tagline}
+          yesterdayResult={yesterdayResult}
         />
       )}
       {screen === 'questions' && (
@@ -367,7 +442,7 @@ export default function App() {
   );
 }
 
-function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, correctPct }) {
+function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, correctPct, tagline, yesterdayResult }) {
   return (
     <div>
       <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '1.5rem', textAlign: 'center' }}>{today}</p>
@@ -403,6 +478,48 @@ function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, 
           <StatPill label="Correct %" value={`${correctPct}%`} />
         )}
       </div>
+
+      {yesterdayResult && (
+        <div style={{
+          background: '#fff',
+          border: '1px solid #e8e8e4',
+          borderRadius: 12,
+          padding: '1.25rem',
+          marginBottom: '1.5rem'
+        }}>
+          <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: 6 }}>yesterday's subjective question</p>
+          <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 10, lineHeight: 1.4, color: '#1a1a1a' }}>
+            {yesterdayResult.question}
+          </p>
+          <p style={{ fontSize: '0.9rem', color: '#555', marginBottom: 8 }}>
+            <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{yesterdayResult.pct}%</span> chose <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{yesterdayResult.choice}</span>
+          </p>
+          {yesterdayResult.comment && (
+            <p style={{
+              fontSize: '0.85rem',
+              color: '#6655cc',
+              fontStyle: 'italic',
+              lineHeight: 1.6,
+              paddingTop: 8,
+              borderTop: '1px solid #f0f0ec'
+            }}>"{yesterdayResult.comment}"</p>
+          )}
+        </div>
+      )}
+
+      {tagline && (
+        <div style={{
+          fontSize: '0.9rem',
+          color: '#555',
+          fontStyle: 'italic',
+          textAlign: 'center',
+          marginBottom: '1.25rem',
+          lineHeight: 1.6,
+          padding: '0 0.5rem'
+        }}>
+          "{tagline}"
+        </div>
+      )}
 
       {!alreadyPlayed && (
         <button onClick={onStart} style={{
