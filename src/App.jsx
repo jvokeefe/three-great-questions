@@ -4,6 +4,10 @@ import { supabase } from './supabase';
 const APP_NAME = "Three Great Questions";
 const APP_SUBTITLE = "(and one subjective one)";
 
+const AMBER = '#c17f3a';
+const AMBER_LIGHT = '#fdf3e7';
+const AMBER_BORDER = '#f0d9b5';
+
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=0&single=true&output=csv";
 const TAGLINES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=1892637865&single=true&output=csv";
 
@@ -385,11 +389,18 @@ export default function App() {
       alignItems: 'center',
       justifyContent: 'center',
       padding: '2rem 1.25rem',
-      textAlign: 'center'
+      textAlign: 'center',
+      background: '#faf9f6'
     }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 8 }}>{APP_NAME}</h1>
+      <h1 style={{
+        fontFamily: "'DM Serif Display', serif",
+        fontSize: '2rem',
+        fontWeight: 400,
+        marginBottom: 8,
+        color: '#1a1a1a'
+      }}>{APP_NAME}</h1>
       <p style={{ color: '#888', fontSize: '0.95rem' }}>{APP_SUBTITLE}</p>
-      <p style={{ color: '#aaa', fontSize: '0.9rem', marginTop: '2rem' }}>
+      <p style={{ color: '#c17f3a', fontSize: '0.9rem', marginTop: '2rem', fontStyle: 'italic' }}>
         Get ready for the best part of the day!
       </p>
     </div>
@@ -397,7 +408,7 @@ export default function App() {
 
   if (error) return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
-      <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>{APP_NAME}</h1>
+      <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '2rem', fontWeight: 400 }}>{APP_NAME}</h1>
       <p style={{ color: '#cc4444', marginTop: '2rem' }}>{error}</p>
     </div>
   );
@@ -405,8 +416,14 @@ export default function App() {
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
       <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1.3 }}>{APP_NAME}</h1>
-        <p style={{ color: '#888', fontSize: '0.95rem', marginTop: 4 }}>{APP_SUBTITLE}</p>
+        <h1 style={{
+          fontFamily: "'DM Serif Display', serif",
+          fontSize: '2rem',
+          fontWeight: 400,
+          lineHeight: 1.2,
+          color: '#1a1a1a'
+        }}>{APP_NAME}</h1>
+        <p style={{ color: '#888', fontSize: '0.9rem', marginTop: 6 }}>{APP_SUBTITLE}</p>
       </div>
 
       {screen === 'home' && (
@@ -445,33 +462,33 @@ export default function App() {
 function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, correctPct, tagline, yesterdayResult }) {
   return (
     <div>
-      <p style={{ fontSize: '0.9rem', color: '#888', marginBottom: '1.5rem', textAlign: 'center' }}>{today}</p>
+      <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: '1.75rem', textAlign: 'center', letterSpacing: '0.03em' }}>{today}</p>
 
       <div style={{
         background: '#fff',
-        border: '1px solid #e8e8e4',
-        borderRadius: 12,
+        border: '1px solid #ede9e0',
+        borderRadius: 14,
         padding: '1.5rem',
-        marginBottom: '1.5rem',
+        marginBottom: '1.25rem',
         textAlign: 'center'
       }}>
         {alreadyPlayed ? (
           <>
-            <p style={{ fontSize: '1rem', fontWeight: 600, marginBottom: 6 }}>You've played today!</p>
-            <p style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: 4 }}>{todayResponse.score}/3</p>
-            <p style={{ fontSize: '0.9rem', color: '#666' }}>Come back tomorrow for a new set.</p>
+            <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>today's score</p>
+            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: '3.5rem', fontWeight: 400, color: '#1a1a1a', lineHeight: 1 }}>{todayResponse.score}/3</p>
+            <p style={{ fontSize: '0.85rem', color: '#aaa', marginTop: 10 }}>Come back tomorrow for a new set.</p>
           </>
         ) : (
           <>
-            <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: 6 }}>Today's set is ready.</p>
-            <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.6 }}>
+            <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: '1.4rem', fontWeight: 400, marginBottom: 8, color: '#1a1a1a' }}>Today's set is ready.</p>
+            <p style={{ fontSize: '0.875rem', color: '#888', lineHeight: 1.6 }}>
               3 trivia questions + 1 subjective prompt.
             </p>
           </>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: '1.5rem' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: '1.25rem' }}>
         <StatPill label="Current streak" value={`${streakData.streak || 0} days`} />
         <StatPill label="Longest streak" value={`${streakData.best_streak || 0} days`} />
         {correctPct !== null && (
@@ -482,56 +499,57 @@ function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, 
       {yesterdayResult && (
         <div style={{
           background: '#fff',
-          border: '1px solid #e8e8e4',
-          borderRadius: 12,
+          border: '1px solid #ede9e0',
+          borderRadius: 14,
           padding: '1.25rem',
-          marginBottom: '1.5rem'
+          marginBottom: '1.25rem'
         }}>
-          <p style={{ fontSize: '0.75rem', color: '#888', marginBottom: 6 }}>yesterday's subjective question</p>
-          <p style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 10, lineHeight: 1.4, color: '#1a1a1a' }}>
+          <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>yesterday's question</p>
+          <p style={{ fontSize: '0.9rem', fontWeight: 500, marginBottom: 10, lineHeight: 1.5, color: '#1a1a1a' }}>
             {yesterdayResult.question}
           </p>
-          <p style={{ fontSize: '0.9rem', color: '#555', marginBottom: 8 }}>
-            <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{yesterdayResult.pct}%</span> chose <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{yesterdayResult.choice}</span>
+          <p style={{ fontSize: '0.875rem', color: '#555' }}>
+            <span style={{ fontWeight: 600, color: AMBER }}>{yesterdayResult.pct}%</span> chose <span style={{ fontWeight: 600, color: '#1a1a1a' }}>{yesterdayResult.choice}</span>
           </p>
           {yesterdayResult.comment && (
             <p style={{
               fontSize: '0.85rem',
-              color: '#6655cc',
+              color: '#888',
               fontStyle: 'italic',
               lineHeight: 1.6,
-              paddingTop: 8,
-              borderTop: '1px solid #f0f0ec'
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: '1px solid #f0ece4'
             }}>"{yesterdayResult.comment}"</p>
           )}
         </div>
       )}
 
       {tagline && (
-        <div style={{
-          fontSize: '0.9rem',
-          color: '#555',
+        <p style={{
+          fontSize: '0.875rem',
+          color: '#888',
           fontStyle: 'italic',
           textAlign: 'center',
           marginBottom: '1.25rem',
           lineHeight: 1.6,
           padding: '0 0.5rem'
-        }}>
-          "{tagline}"
-        </div>
+        }}>"{tagline}"</p>
       )}
 
       {!alreadyPlayed && (
         <button onClick={onStart} style={{
           width: '100%',
-          padding: '0.875rem',
-          background: '#1a1a1a',
+          padding: '1rem',
+          background: AMBER,
           color: '#fff',
           border: 'none',
-          borderRadius: 10,
+          borderRadius: 12,
           fontSize: '1rem',
           fontWeight: 600,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          letterSpacing: '0.01em',
+          transition: 'opacity 0.15s'
         }}>
           Start today's questions →
         </button>
@@ -566,14 +584,16 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
     }}>
       <ProgressBar current={questionNumber} total={total} />
 
-      <div style={{ marginBottom: '0.75rem', display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{ marginBottom: '1rem', display: 'flex', gap: 8, alignItems: 'center' }}>
         {question.category && (
           <span style={{
             fontSize: '0.75rem',
-            background: '#f0f0ec',
-            color: '#666',
-            padding: '2px 10px',
-            borderRadius: 20
+            background: AMBER_LIGHT,
+            color: AMBER,
+            padding: '3px 10px',
+            borderRadius: 20,
+            fontWeight: 500,
+            letterSpacing: '0.02em'
           }}>{question.category}</span>
         )}
         {isSubjective && (
@@ -581,17 +601,20 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
             fontSize: '0.75rem',
             background: '#f0eeff',
             color: '#6655cc',
-            padding: '2px 10px',
-            borderRadius: 20
+            padding: '3px 10px',
+            borderRadius: 20,
+            fontWeight: 500
           }}>subjective</span>
         )}
       </div>
 
       <p style={{
-        fontSize: '1.2rem',
-        fontWeight: 600,
-        lineHeight: 1.5,
-        marginBottom: '1.5rem'
+        fontFamily: "'DM Serif Display', serif",
+        fontSize: '1.4rem',
+        fontWeight: 400,
+        lineHeight: 1.45,
+        marginBottom: '1.75rem',
+        color: '#1a1a1a'
       }}>{question.question}</p>
 
       {isTrivia && (
@@ -606,12 +629,17 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
             width: '100%',
             padding: '0.875rem 1rem',
             fontSize: '1rem',
-            border: '1.5px solid #ddd',
+            border: '1.5px solid #ede9e0',
             borderRadius: 10,
             outline: 'none',
             marginBottom: '1rem',
-            background: '#fff'
+            background: '#fff',
+            fontFamily: "'DM Sans', sans-serif",
+            color: '#1a1a1a',
+            transition: 'border-color 0.15s'
           }}
+          onFocus={e => e.target.style.borderColor = AMBER_BORDER}
+          onBlur={e => e.target.style.borderColor = '#ede9e0'}
         />
       )}
 
@@ -625,11 +653,13 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
                 padding: '0.875rem 1rem',
                 textAlign: 'left',
                 fontSize: '0.95rem',
-                border: selected === opt ? '2px solid #1a1a1a' : '1.5px solid #ddd',
+                border: selected === opt ? `2px solid ${AMBER}` : '1.5px solid #ede9e0',
                 borderRadius: 10,
-                background: selected === opt ? '#f5f5f2' : '#fff',
+                background: selected === opt ? AMBER_LIGHT : '#fff',
                 cursor: 'pointer',
                 fontWeight: selected === opt ? 600 : 400,
+                color: selected === opt ? AMBER : '#1a1a1a',
+                fontFamily: "'DM Sans', sans-serif",
                 transition: 'all 0.15s'
               }}
             >{opt}</button>
@@ -642,14 +672,15 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
         disabled={isTrivia ? !input.trim() : !selected}
         style={{
           width: '100%',
-          padding: '0.875rem',
-          background: '#1a1a1a',
+          padding: '1rem',
+          background: AMBER,
           color: '#fff',
           border: 'none',
-          borderRadius: 10,
+          borderRadius: 12,
           fontSize: '1rem',
           fontWeight: 600,
           cursor: 'pointer',
+          fontFamily: "'DM Sans', sans-serif",
           opacity: (isTrivia ? !input.trim() : !selected) ? 0.35 : 1,
           transition: 'opacity 0.15s'
         }}
@@ -662,13 +693,13 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
 
 function ProgressBar({ current, total }) {
   return (
-    <div style={{ display: 'flex', gap: 6, marginBottom: '1.5rem' }}>
+    <div style={{ display: 'flex', gap: 6, marginBottom: '1.75rem' }}>
       {Array.from({ length: total }).map((_, i) => (
         <div key={i} style={{
           flex: 1,
-          height: 4,
+          height: 3,
           borderRadius: 2,
-          background: i < current ? '#1a1a1a' : '#e0e0da',
+          background: i < current ? AMBER : '#e8e4da',
           transition: 'background 0.3s'
         }} />
       ))}
@@ -701,16 +732,16 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
     <div>
       <div style={{
         background: '#fff',
-        border: '1px solid #e8e8e4',
-        borderRadius: 12,
-        padding: '1.5rem',
+        border: '1px solid #ede9e0',
+        borderRadius: 14,
+        padding: '1.75rem',
         marginBottom: '1rem',
         textAlign: 'center'
       }}>
-        <p style={{ fontSize: '3rem', fontWeight: 700 }}>{score}/3</p>
-        <p style={{ color: '#888', fontSize: '0.9rem' }}>today's score</p>
+        <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>today's score</p>
+        <p style={{ fontFamily: "'DM Serif Display', serif", fontSize: '4rem', fontWeight: 400, color: '#1a1a1a', lineHeight: 1 }}>{score}/3</p>
         {streakData.streak > 0 && (
-          <p style={{ color: '#2a9d6a', fontSize: '0.9rem', fontWeight: 600, marginTop: 8 }}>
+          <p style={{ color: AMBER, fontSize: '0.9rem', fontWeight: 600, marginTop: 12 }}>
             🔥 {streakData.streak} day streak
           </p>
         )}
@@ -721,32 +752,40 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
         return (
           <div key={i} style={{
             background: '#fff',
-            border: '1px solid #e8e8e4',
-            borderRadius: 12,
+            border: '1px solid #ede9e0',
+            borderRadius: 14,
             padding: '1.25rem',
             marginBottom: '0.75rem'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: '0.8rem', color: '#888' }}>Q{i + 1}</span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: accepted ? '#2a9d6a' : '#cc4444' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: '0.75rem', color: '#aaa', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Q{i + 1}</span>
+              <span style={{
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                color: accepted ? '#2a9d6a' : '#cc4444',
+                background: accepted ? '#e8f7f1' : '#fdf0f0',
+                padding: '2px 10px',
+                borderRadius: 20
+              }}>
                 {accepted ? '✓ correct' : '✗ incorrect'}
               </span>
             </div>
-            <p style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>{q.question}</p>
-            <p style={{ fontSize: '0.85rem', color: '#888', marginBottom: 4 }}>
-              Your answer: <span style={{ color: '#1a1a1a' }}>{triviaAnswers[i] || '—'}</span>
+            <p style={{ fontSize: '0.95rem', fontWeight: 500, marginBottom: 10, lineHeight: 1.5, color: '#1a1a1a' }}>{q.question}</p>
+            <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: 4 }}>
+              Your answer: <span style={{ color: '#555' }}>{triviaAnswers[i] || '—'}</span>
             </p>
-            <p style={{ fontSize: '0.85rem', color: '#888' }}>
+            <p style={{ fontSize: '0.85rem', color: '#aaa' }}>
               Correct answer: <span style={{ color: '#1a1a1a', fontWeight: 600 }}>{q.answer}</span>
             </p>
             {q.explanation && (
               <p style={{
                 fontSize: '0.85rem',
-                color: '#555',
+                color: '#666',
                 lineHeight: 1.6,
-                marginTop: 10,
-                paddingTop: 10,
-                borderTop: '1px solid #f0f0ec'
+                marginTop: 12,
+                paddingTop: 12,
+                borderTop: '1px solid #f0ece4',
+                fontStyle: 'italic'
               }}>{q.explanation}</p>
             )}
           </div>
@@ -755,59 +794,63 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
 
       {subjQuestion && (
         <div style={{
-          background: '#f8f6ff',
-          border: '1px solid #e8e4ff',
-          borderRadius: 12,
+          background: AMBER_LIGHT,
+          border: `1px solid ${AMBER_BORDER}`,
+          borderRadius: 14,
           padding: '1.25rem',
           marginBottom: '1rem'
         }}>
-          <p style={{ fontSize: '0.8rem', color: '#6655cc', marginBottom: 6 }}>subjective question</p>
-          <p style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>
+          <p style={{ fontSize: '0.75rem', color: AMBER, marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 500 }}>subjective question</p>
+          <p style={{ fontSize: '0.95rem', fontWeight: 500, marginBottom: 8, lineHeight: 1.5, color: '#1a1a1a' }}>
             {subjQuestion.question}
           </p>
-          <p style={{ fontSize: '0.85rem', color: '#555' }}>
-            You chose: <span style={{ fontWeight: 600 }}>{subjAnswer}</span>
+          <p style={{ fontSize: '0.875rem', color: '#666' }}>
+            You chose: <span style={{ fontWeight: 600, color: AMBER }}>{subjAnswer}</span>
           </p>
         </div>
       )}
 
       <div style={{
-        background: '#f5f5f2',
-        borderRadius: 12,
+        background: '#fff',
+        border: '1px solid #ede9e0',
+        borderRadius: 14,
         padding: '1.25rem',
         marginBottom: '0.75rem',
         fontFamily: 'monospace',
         fontSize: '0.85rem',
         lineHeight: 1.8,
-        whiteSpace: 'pre-wrap'
+        whiteSpace: 'pre-wrap',
+        color: '#555'
       }}>{shareText}</div>
 
       <button type="button" onClick={copyShare} style={{
         width: '100%',
-        padding: '0.875rem',
+        padding: '1rem',
         background: copied ? '#2a9d6a' : '#fff',
         color: copied ? '#fff' : '#1a1a1a',
-        border: copied ? '1.5px solid #2a9d6a' : '1.5px solid #ddd',
-        borderRadius: 10,
+        border: copied ? '1.5px solid #2a9d6a' : '1.5px solid #ede9e0',
+        borderRadius: 12,
         fontSize: '1rem',
         fontWeight: 600,
         cursor: 'pointer',
         marginBottom: '0.75rem',
-        transition: 'background 0.2s, color 0.2s, border 0.2s'
+        fontFamily: "'DM Sans', sans-serif",
+        transition: 'all 0.2s'
       }}>
         {copied ? '✓ Copied!' : 'Copy results'}
       </button>
 
       <button type="button" onClick={onHome} style={{
         width: '100%',
-        padding: '0.875rem',
-        background: '#1a1a1a',
+        padding: '1rem',
+        background: AMBER,
         color: '#fff',
         border: 'none',
-        borderRadius: 10,
+        borderRadius: 12,
         fontSize: '1rem',
         fontWeight: 600,
-        cursor: 'pointer'
+        cursor: 'pointer',
+        fontFamily: "'DM Sans', sans-serif"
       }}>
         ← Back to home
       </button>
@@ -819,13 +862,14 @@ function StatPill({ label, value }) {
   return (
     <div style={{
       flex: 1,
-      background: '#f5f5f2',
+      background: '#fff',
+      border: '1px solid #ede9e0',
       borderRadius: 10,
       padding: '0.75rem 1rem',
       textAlign: 'center'
     }}>
-      <p style={{ fontSize: '0.7rem', color: '#888', marginBottom: 2 }}>{label}</p>
-      <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{value}</p>
+      <p style={{ fontSize: '0.7rem', color: '#aaa', marginBottom: 4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</p>
+      <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1a1a1a' }}>{value}</p>
     </div>
   );
 }
