@@ -274,7 +274,7 @@ function checkAnswer(input, question) {
       if (userAnswer === target) return true;
     } else {
       if (userAnswer === target) return true;
-      if (levenshtein(userAnswer, target) <= Math.max(1, Math.floor(target.length * 0.2))) return true;
+      if (levenshtein(userAnswer, target) <= Math.max(1, Math.floor(target.length * 0.25))) return true;
     }
   }
   return false;
