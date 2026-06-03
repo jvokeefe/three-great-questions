@@ -535,7 +535,7 @@ function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, 
           padding: '1.25rem',
           marginBottom: '1.25rem'
         }}>
-          <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>yesterday's subjective question</p>
+          <p style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: 8, letterSpacing: '0.05em', textTransform: 'uppercase' }}>yesterday's question</p>
           <p style={{ fontSize: '0.9rem', fontWeight: 500, marginBottom: 10, lineHeight: 1.5, color: '#1a1a1a' }}>
             {yesterdayResult.question}
           </p>
@@ -747,15 +747,24 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
   const subjQuestion = questions.find(q => q.type === 'subjective');
 
   const emojiRow = [
-    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥')
+    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥'),
+    '🎭'
   ].join(' ');
 
-  const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nthree-great-questions.vercel.app`;
+  const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nPlay today's set: three-great-questions.vercel.app`;
 
   function copyShare() {
     navigator.clipboard.writeText(shareText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  }
+
+  function nativeShare() {
+    navigator.share({
+      title: APP_NAME,
+      text: shareText,
+      url: 'https://three-great-questions.vercel.app'
+    }).catch(() => {});
   }
 
   return (
@@ -853,22 +862,39 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
         color: '#555'
       }}>{shareText}</div>
 
-      <button type="button" onClick={copyShare} style={{
-        width: '100%',
-        padding: '1rem',
-        background: copied ? '#2a9d6a' : '#fff',
-        color: copied ? '#fff' : '#1a1a1a',
-        border: copied ? '1.5px solid #2a9d6a' : '1.5px solid #ede9e0',
-        borderRadius: 12,
-        fontSize: '1rem',
-        fontWeight: 600,
-        cursor: 'pointer',
-        marginBottom: '0.75rem',
-        fontFamily: "'DM Sans', sans-serif",
-        transition: 'all 0.2s'
-      }}>
-        {copied ? '✓ Copied!' : 'Copy results'}
-      </button>
+      <div style={{ display: 'flex', gap: 10, marginBottom: '0.75rem' }}>
+        {typeof navigator.share === 'function' && (
+          <button type="button" onClick={nativeShare} style={{
+            flex: 1,
+            padding: '1rem',
+            background: AMBER,
+            color: '#fff',
+            border: 'none',
+            borderRadius: 12,
+            fontSize: '1rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: "'DM Sans', sans-serif"
+          }}>
+            Share ↗
+          </button>
+        )}
+        <button type="button" onClick={copyShare} style={{
+          flex: 1,
+          padding: '1rem',
+          background: copied ? '#2a9d6a' : '#fff',
+          color: copied ? '#fff' : '#1a1a1a',
+          border: copied ? '1.5px solid #2a9d6a' : '1.5px solid #ede9e0',
+          borderRadius: 12,
+          fontSize: '1rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontFamily: "'DM Sans', sans-serif",
+          transition: 'all 0.2s'
+        }}>
+          {copied ? '✓ Copied!' : 'Copy results'}
+        </button>
+      </div>
 
       <button type="button" onClick={onHome} style={{
         width: '100%',
