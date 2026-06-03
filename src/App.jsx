@@ -747,8 +747,7 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
   const subjQuestion = questions.find(q => q.type === 'subjective');
 
   const emojiRow = [
-    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥'),
-    '🎭'
+    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥')
   ].join(' ');
 
   const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nPlay today's set: three-great-questions.vercel.app`;
@@ -863,7 +862,7 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
       }}>{shareText}</div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: '0.75rem' }}>
-        {typeof navigator.share === 'function' && (
+      {navigator.share && (
           <button type="button" onClick={nativeShare} style={{
             flex: 1,
             padding: '1rem',
