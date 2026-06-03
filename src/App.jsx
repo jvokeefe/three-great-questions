@@ -189,12 +189,12 @@ async function saveResponse(sessionId, questions, userAnswers, score) {
   const result = await supabase.from('user_responses').upsert({
     session_id: sessionId,
     set_date: today,
-    q1_answer: userAnswers[0],
-    q1_accepted: checkAnswer(userAnswers[0] || '', triviaQs[0]),
-    q2_answer: userAnswers[1],
-    q2_accepted: checkAnswer(userAnswers[1] || '', triviaQs[1]),
-    q3_answer: userAnswers[2],
-    q3_accepted: checkAnswer(userAnswers[2] || '', triviaQs[2]),
+    q1_answer: Array.isArray(userAnswers[0]) ? userAnswers[0].join('|') : userAnswers[0],
+    q1_accepted: triviaQs[0].type === 'multi' ? checkMultiAnswer(userAnswers[0] || [], triviaQs[0]) : checkAnswer(userAnswers[0] || '', triviaQs[0]),
+    q2_answer: Array.isArray(userAnswers[1]) ? userAnswers[1].join('|') : userAnswers[1],
+    q2_accepted: triviaQs[1].type === 'multi' ? checkMultiAnswer(userAnswers[1] || [], triviaQs[1]) : checkAnswer(userAnswers[1] || '', triviaQs[1]),
+    q3_answer: Array.isArray(userAnswers[2]) ? userAnswers[2].join('|') : userAnswers[2],
+    q3_accepted: triviaQs[2].type === 'multi' ? checkMultiAnswer(userAnswers[2] || [], triviaQs[2]) : checkAnswer(userAnswers[2] || '', triviaQs[2]),
     q4_choice: userAnswers[3],
     score
   }, { onConflict: 'session_id,set_date' });
@@ -280,6 +280,27 @@ function checkAnswer(input, question) {
   return false;
 }
 
+function checkMultiAnswer(inputs, question) {
+  const targets = question.answer.split('|').map(a => normalize(a.trim()));
+  const userInputs = inputs.map(i => normalize(i.trim())).filter(Boolean);
+  if (userInputs.length !== targets.length) return false;
+  const usedTargets = new Set();
+  for (const input of userInputs) {
+    let matched = false;
+    for (const target of targets) {
+      if (usedTargets.has(target)) continue;
+      const isNumeric = /^\d+$/.test(target);
+      if (isNumeric ? input === target : (input === target || levenshtein(input, target) <= Math.max(1, Math.floor(target.length * 0.25)))) {
+        usedTargets.add(target);
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) return false;
+  }
+  return usedTargets.size === targets.length;
+}
+
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [currentQ, setCurrentQ] = useState(0);
@@ -345,6 +366,13 @@ export default function App() {
         if (response) {
           setAlreadyPlayed(true);
           setTodayResponse(response);
+          // Reconstruct answers from stored response for review
+          setFinalAnswers([
+            response.q1_answer?.includes('|') ? response.q1_answer.split('|') : response.q1_answer,
+            response.q2_answer?.includes('|') ? response.q2_answer.split('|') : response.q2_answer,
+            response.q3_answer?.includes('|') ? response.q3_answer.split('|') : response.q3_answer,
+            response.q4_choice
+          ]);
         }
       } catch (e) {
         console.error('Init error:', e);
@@ -369,7 +397,10 @@ export default function App() {
       setCurrentQ(currentQ + 1);
     } else {
       const triviaQs = questions.filter(q => q.type === 'trivia');
-      const score = triviaQs.reduce((acc, q, i) => acc + (checkAnswer(newAnswers[i] || '', q) ? 1 : 0), 0);
+      const score = triviaQs.reduce((acc, q, i) => {
+        if (q.type === 'multi') return acc + (checkMultiAnswer(newAnswers[i] || [], q) ? 1 : 0);
+        return acc + (checkAnswer(newAnswers[i] || '', q) ? 1 : 0);
+      }, 0);
       const [, streakResult] = await Promise.all([
         saveResponse(sessionId, questions, newAnswers, score),
         updateStreak(sessionId)
@@ -446,12 +477,14 @@ export default function App() {
         <HomeScreen
           today={today}
           onStart={handleStart}
+          onReview={() => setScreen('results')}
           streakData={streakData}
           alreadyPlayed={alreadyPlayed}
           todayResponse={todayResponse}
           correctPct={correctPct}
           tagline={tagline}
           yesterdayResult={yesterdayResult}
+          hasResults={finalAnswers.length > 0}
         />
       )}
       {screen === 'questions' && (
@@ -475,7 +508,7 @@ export default function App() {
   );
 }
 
-function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, correctPct, tagline, yesterdayResult }) {
+function HomeScreen({ today, onStart, onReview, streakData, alreadyPlayed, todayResponse, correctPct, tagline, yesterdayResult, hasResults }) {
   return (
     <div>
       <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: '1rem', textAlign: 'center', letterSpacing: '0.03em' }}>{today}</p>
@@ -585,6 +618,25 @@ function HomeScreen({ today, onStart, streakData, alreadyPlayed, todayResponse, 
           Start today's questions →
         </button>
       )}
+
+      {alreadyPlayed && hasResults && (
+        <button onClick={onReview} style={{
+          width: '100%',
+          padding: '1rem',
+          background: '#fff',
+          color: '#1a1a1a',
+          border: '1.5px solid #ede9e0',
+          borderRadius: 12,
+          fontSize: '1rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          letterSpacing: '0.01em',
+          marginTop: '0.75rem',
+          transition: 'opacity 0.15s'
+        }}>
+          Review today's answers →
+        </button>
+      )}
     </div>
   );
 }
@@ -595,14 +647,20 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
   const [animating, setAnimating] = useState(false);
   const isSubjective = question.type === 'subjective';
   const isTrivia = question.type === 'trivia';
+  const isMulti = question.type === 'multi';
+  const answerCount = parseInt(question.answer_count) || 3;
+  const [multiInputs, setMultiInputs] = useState(Array(answerCount).fill(''));
   const options = question.options ? question.options.split('|').map(o => o.trim()).filter(Boolean) : [];
 
   function handleSubmit() {
     if (isTrivia && !input.trim()) return;
+    if (isMulti && multiInputs.some(i => !i.trim())) return;
     if (isSubjective && !selected) return;
     setAnimating(true);
     setTimeout(() => {
-      onAnswer(isTrivia ? input.trim() : selected);
+      if (isTrivia) onAnswer(input.trim());
+      else if (isMulti) onAnswer(multiInputs);
+      else onAnswer(selected);
       setAnimating(false);
     }, 200);
   }
@@ -636,6 +694,16 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
             borderRadius: 20,
             fontWeight: 500
           }}>subjective</span>
+        )}
+        {isMulti && (
+          <span style={{
+            fontSize: '0.75rem',
+            background: AMBER_LIGHT,
+            color: AMBER,
+            padding: '3px 10px',
+            borderRadius: 20,
+            fontWeight: 500
+          }}>name all {answerCount}</span>
         )}
       </div>
 
@@ -674,6 +742,48 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
         />
       )}
 
+      {isMulti && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1rem' }}>
+          {multiInputs.map((val, i) => (
+            <input
+              key={i}
+              autoFocus={i === 0}
+              id={`multi-input-${i}`}
+              type="text"
+              value={val}
+              onChange={e => {
+                const updated = [...multiInputs];
+                updated[i] = e.target.value;
+                setMultiInputs(updated);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && i < multiInputs.length - 1) {
+                  e.preventDefault();
+                  document.getElementById(`multi-input-${i + 1}`)?.focus();
+                } else if (e.key === 'Enter') {
+                  handleSubmit();
+                }
+              }}
+              placeholder={`Answer ${i + 1}...`}
+              style={{
+                width: '100%',
+                padding: '0.875rem 1rem',
+                fontSize: '1rem',
+                border: '1.5px solid #ede9e0',
+                borderRadius: 10,
+                outline: 'none',
+                background: '#fff',
+                fontFamily: "'DM Sans', sans-serif",
+                color: '#1a1a1a',
+                transition: 'border-color 0.15s'
+              }}
+              onFocus={e => e.target.style.borderColor = AMBER_BORDER}
+              onBlur={e => e.target.style.borderColor = '#ede9e0'}
+            />
+          ))}
+        </div>
+      )}
+
       {isSubjective && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: '1rem' }}>
           {options.map(opt => (
@@ -700,7 +810,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
 
       <button
         onClick={handleSubmit}
-        disabled={isTrivia ? !input.trim() : !selected}
+        disabled={isTrivia ? !input.trim() : isMulti ? multiInputs.some(i => !i.trim()) : !selected}
         style={{
           width: '100%',
           padding: '1rem',
@@ -712,7 +822,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
           fontWeight: 600,
           cursor: 'pointer',
           fontFamily: "'DM Sans', sans-serif",
-          opacity: (isTrivia ? !input.trim() : !selected) ? 0.35 : 1,
+          opacity: (isTrivia ? !input.trim() : isMulti ? multiInputs.some(i => !i.trim()) : !selected) ? 0.35 : 1,
           transition: 'opacity 0.15s'
         }}
       >
@@ -742,12 +852,19 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
   const [copied, setCopied] = useState(false);
   const triviaQuestions = questions.filter(q => q.type === 'trivia');
   const triviaAnswers = userAnswers.slice(0, 3);
-  const score = triviaQuestions.reduce((acc, q, i) => acc + (checkAnswer(triviaAnswers[i] || '', q) ? 1 : 0), 0);
+  const score = triviaQuestions.reduce((acc, q, i) => {
+    if (q.type === 'multi') return acc + (checkMultiAnswer(triviaAnswers[i] || [], q) ? 1 : 0);
+    return acc + (checkAnswer(triviaAnswers[i] || '', q) ? 1 : 0);
+  }, 0);
   const subjAnswer = userAnswers[3];
   const subjQuestion = questions.find(q => q.type === 'subjective');
 
   const emojiRow = [
-    ...triviaQuestions.map((q, i) => checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥')
+    ...triviaQuestions.map((q, i) => {
+      if (q.type === 'multi') return checkMultiAnswer(triviaAnswers[i] || [], q) ? '🟩' : '🟥';
+      return checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥';
+    }),
+    '🎭'
   ].join(' ');
 
   const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nPlay today's set: three-great-questions.vercel.app`;
@@ -786,7 +903,9 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
       </div>
 
       {triviaQuestions.map((q, i) => {
-        const accepted = checkAnswer(triviaAnswers[i] || '', q);
+        const accepted = q.type === 'multi'
+          ? checkMultiAnswer(triviaAnswers[i] || [], q)
+          : checkAnswer(triviaAnswers[i] || '', q);
         return (
           <div key={i} style={{
             background: '#fff',
@@ -810,10 +929,14 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
             </div>
             <p style={{ fontSize: '0.95rem', fontWeight: 500, marginBottom: 10, lineHeight: 1.5, color: '#1a1a1a' }}>{q.question}</p>
             <p style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: 4 }}>
-              Your answer: <span style={{ color: '#555' }}>{triviaAnswers[i] || '—'}</span>
+              Your answer: <span style={{ color: '#555' }}>
+                {Array.isArray(triviaAnswers[i]) ? triviaAnswers[i].join(', ') : (triviaAnswers[i] || '—')}
+              </span>
             </p>
             <p style={{ fontSize: '0.85rem', color: '#aaa' }}>
-              Correct answer: <span style={{ color: '#1a1a1a', fontWeight: 600 }}>{q.answer}</span>
+              Correct answer: <span style={{ color: '#1a1a1a', fontWeight: 600 }}>
+                {q.type === 'multi' ? q.answer.split('|').join(', ') : q.answer}
+              </span>
             </p>
             {q.explanation && (
               <p style={{
@@ -862,7 +985,7 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
       }}>{shareText}</div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: '0.75rem' }}>
-      {navigator.share && (
+        {navigator.share && (
           <button type="button" onClick={nativeShare} style={{
             flex: 1,
             padding: '1rem',
