@@ -863,8 +863,7 @@ function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
     ...triviaQuestions.map((q, i) => {
       if (q.type === 'multi') return checkMultiAnswer(triviaAnswers[i] || [], q) ? '🟩' : '🟥';
       return checkAnswer(triviaAnswers[i] || '', q) ? '🟩' : '🟥';
-    }),
-    '🎭'
+    })
   ].join(' ');
 
   const shareText = `${APP_NAME}\n${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} — ${score}/3\n\n${emojiRow}\n\nPlay today's set: three-great-questions.vercel.app`;
