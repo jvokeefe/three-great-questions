@@ -41,38 +41,25 @@ async function fetchQuestions(sheetUrl) {
   const text = await response.text();
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-  
-  const rows = [];
-  let currentRow = '';
-  let inQuotes = false;
-  
-  for (let i = 1; i < lines.length; i++) {
-    currentRow += (currentRow ? '\n' : '') + lines[i];
-    const quoteCount = (currentRow.match(/"/g) || []).length;
-    inQuotes = quoteCount % 2 !== 0;
-    if (!inQuotes) {
-      const values = [];
-      let current = '';
-      let inQ = false;
-      for (let c = 0; c < currentRow.length; c++) {
-        if (currentRow[c] === '"') {
-          inQ = !inQ;
-        } else if (currentRow[c] === ',' && !inQ) {
-          values.push(current.trim().replace(/^"|"$/g, '').replace(/\n/g, ' '));
-          current = '';
-        } else {
-          current += currentRow[c];
-        }
+  return lines.slice(1).map(line => {
+    const values = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        inQuotes = !inQuotes;
+      } else if (line[i] === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += line[i];
       }
-      values.push(current.trim().replace(/^"|"$/g, '').replace(/\n/g, ' '));
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
-      rows.push(obj);
-      currentRow = '';
     }
-  }
-  
-  return rows.filter(r => r.question && r.status === 'app-ready');
+    values.push(current.trim());
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
+    return obj;
+  }).filter(r => r.question && r.status === 'app-ready');
 }
 
 async function fetchTagline() {
@@ -198,7 +185,7 @@ async function updateStreak(sessionId) {
 
 async function saveResponse(sessionId, questions, userAnswers, score) {
   const today = getTodayKey();
-  const triviaQs = questions.filter(q => q.type === 'trivia');
+  const triviaQs = questions.filter(q => q.type === 'trivia' || q.type === 'multi');
   const result = await supabase.from('user_responses').upsert({
     session_id: sessionId,
     set_date: today,
@@ -379,7 +366,6 @@ export default function App() {
         if (response) {
           setAlreadyPlayed(true);
           setTodayResponse(response);
-          // Reconstruct answers from stored response for review
           setFinalAnswers([
             response.q1_answer?.includes('|') ? response.q1_answer.split('|') : response.q1_answer,
             response.q2_answer?.includes('|') ? response.q2_answer.split('|') : response.q2_answer,
@@ -409,7 +395,7 @@ export default function App() {
     if (currentQ < questions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      const triviaQs = questions.filter(q => q.type === 'trivia');
+      const triviaQs = questions.filter(q => q.type === 'trivia' || q.type === 'multi');
       const score = triviaQs.reduce((acc, q, i) => {
         if (q.type === 'multi') return acc + (checkMultiAnswer(newAnswers[i] || [], q) ? 1 : 0);
         return acc + (checkAnswer(newAnswers[i] || '', q) ? 1 : 0);
@@ -863,7 +849,7 @@ function ProgressBar({ current, total }) {
 
 function ResultsScreen({ questions, userAnswers, streakData, onHome }) {
   const [copied, setCopied] = useState(false);
-  const triviaQuestions = questions.filter(q => q.type === 'trivia');
+  const triviaQuestions = questions.filter(q => q.type === 'trivia' || q.type === 'multi');
   const triviaAnswers = userAnswers.slice(0, 3);
   const score = triviaQuestions.reduce((acc, q, i) => {
     if (q.type === 'multi') return acc + (checkMultiAnswer(triviaAnswers[i] || [], q) ? 1 : 0);
