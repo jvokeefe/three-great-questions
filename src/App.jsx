@@ -41,25 +41,38 @@ async function fetchQuestions(sheetUrl) {
   const text = await response.text();
   const lines = text.trim().split(/\r?\n/);
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
-  return lines.slice(1).map(line => {
-    const values = [];
-    let current = '';
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      if (line[i] === '"') {
-        inQuotes = !inQuotes;
-      } else if (line[i] === ',' && !inQuotes) {
-        values.push(current.trim());
-        current = '';
-      } else {
-        current += line[i];
+  
+  const rows = [];
+  let currentRow = '';
+  let inQuotes = false;
+  
+  for (let i = 1; i < lines.length; i++) {
+    currentRow += (currentRow ? '\n' : '') + lines[i];
+    const quoteCount = (currentRow.match(/"/g) || []).length;
+    inQuotes = quoteCount % 2 !== 0;
+    if (!inQuotes) {
+      const values = [];
+      let current = '';
+      let inQ = false;
+      for (let c = 0; c < currentRow.length; c++) {
+        if (currentRow[c] === '"') {
+          inQ = !inQ;
+        } else if (currentRow[c] === ',' && !inQ) {
+          values.push(current.trim().replace(/^"|"$/g, '').replace(/\n/g, ' '));
+          current = '';
+        } else {
+          current += currentRow[c];
+        }
       }
+      values.push(current.trim().replace(/^"|"$/g, '').replace(/\n/g, ' '));
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
+      rows.push(obj);
+      currentRow = '';
     }
-    values.push(current.trim());
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = (values[i] || '').trim(); });
-    return obj;
-  }).filter(r => r.question && r.status === 'app-ready');
+  }
+  
+  return rows.filter(r => r.question && r.status === 'app-ready');
 }
 
 async function fetchTagline() {
@@ -80,7 +93,7 @@ async function fetchTagline() {
 
 async function getTodaySet(allQuestions) {
   const today = getTodayKey();
-  const trivia = allQuestions.filter(q => q.type === 'trivia');
+  const trivia = allQuestions.filter(q => q.type === 'trivia' || q.type === 'multi');
   const subjective = allQuestions.filter(q => q.type === 'subjective');
 
   const { data: existing } = await supabase
