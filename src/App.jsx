@@ -463,7 +463,7 @@ export default function App() {
             <img
               src={LOGO}
               alt="Hambone's"
-              style={{ width: 36, height: 36, flexShrink: 0 }}
+              style={{ width:28, height: 28, flexShrink: 0 }}
             />
           )}
         </div>
