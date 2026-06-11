@@ -7,15 +7,13 @@ const APP_SUBTITLE = "(and one subjective one)";
 const NAVY = '#092137';
 const CREAM = '#FEF8D0';
 const ORANGE = '#F48717';
-const RED = '#CC421A';
 const GOLD = '#EEC918';
-const NAVY_LIGHT = '#0e2f4f';
 const NAVY_CARD = '#0d2843';
 
 const LOGO = '/hambone.png';
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=0&single=true&output=csv";
-const TAGLINES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbeeJ59EN-_-3Vpkwo63n-L/pub?gid=1892637865&single=true&output=csv";
+const TAGLINES_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTM0iHRnP1bO58W-iwacGqB7OLZ3uyX4qK4J11lYA3J6P-VFOobsxwWg2sbEJ59EN-_-3Vpkwo63n-L/pub?gid=1892637865&single=true&output=csv";
 
 function getSessionId() {
   let id = localStorage.getItem('tgq_session_id');
@@ -446,35 +444,30 @@ export default function App() {
   if (error) return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem', background: NAVY, minHeight: '100vh' }}>
       <h1 style={{ fontFamily: "'DM Serif Display', serif", fontSize: '2rem', fontWeight: 400, color: CREAM }}>{APP_NAME}</h1>
-      <p style={{ color: RED, marginTop: '2rem' }}>{error}</p>
+      <p style={{ color: '#f87171', marginTop: '2rem' }}>{error}</p>
     </div>
   );
 
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', padding: '2rem 1.25rem' }}>
-      <div style={{ marginBottom: '2rem', textAlign: 'center', position: 'relative' }}>
-        <h1 style={{
-          fontFamily: "'DM Serif Display', serif",
-          fontSize: '2rem',
-          fontWeight: 400,
-          lineHeight: 1.2,
-          color: CREAM
-        }}>{APP_NAME}</h1>
+      <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          <h1 style={{
+            fontFamily: "'DM Serif Display', serif",
+            fontSize: '1.75rem',
+            fontWeight: 400,
+            lineHeight: 1.2,
+            color: CREAM
+          }}>{APP_NAME}</h1>
+          {screen !== 'home' && (
+            <img
+              src={LOGO}
+              alt="Hambone's"
+              style={{ width: 36, height: 36, flexShrink: 0 }}
+            />
+          )}
+        </div>
         <p style={{ color: CREAM, fontSize: '0.8rem', marginTop: 6, letterSpacing: '0.02em', opacity: 0.5 }}>{APP_SUBTITLE}</p>
-        {screen !== 'home' && (
-          <img
-            src={LOGO}
-            alt="Hambone's"
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 40,
-              height: 40,
-            }}
-          />
-        )}
       </div>
 
       {screen === 'home' && (
@@ -676,39 +669,25 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
     }}>
       <ProgressBar current={questionNumber} total={total} />
 
-      <div style={{ marginBottom: '1rem', display: 'flex', gap: 8, alignItems: 'center' }}>
-        {question.category && (
-          <span style={{
-            fontSize: '0.75rem',
-            background: 'rgba(244,135,23,0.15)',
-            color: ORANGE,
-            padding: '3px 10px',
-            borderRadius: 20,
-            fontWeight: 500,
-            letterSpacing: '0.02em'
-          }}>{question.category}</span>
-        )}
-        {isSubjective && (
-          <span style={{
-            fontSize: '0.75rem',
-            background: 'rgba(238,201,24,0.15)',
-            color: GOLD,
-            padding: '3px 10px',
-            borderRadius: 20,
-            fontWeight: 500
-          }}>subjective</span>
-        )}
-        {isMulti && (
-          <span style={{
-            fontSize: '0.75rem',
-            background: 'rgba(244,135,23,0.15)',
-            color: ORANGE,
-            padding: '3px 10px',
-            borderRadius: 20,
-            fontWeight: 500
-          }}>name all {answerCount}</span>
-        )}
-      </div>
+      {isMulti && (
+        <p style={{
+          fontSize: '0.75rem',
+          color: ORANGE,
+          marginBottom: '0.75rem',
+          fontWeight: 500,
+          letterSpacing: '0.02em'
+        }}>Name all {answerCount} — you need every answer to get credit</p>
+      )}
+
+      {isSubjective && (
+        <p style={{
+          fontSize: '0.75rem',
+          color: GOLD,
+          marginBottom: '0.75rem',
+          fontWeight: 500,
+          letterSpacing: '0.02em'
+        }}>subjective</p>
+      )}
 
       <p style={{
         fontFamily: "'DM Serif Display', serif",
@@ -817,7 +796,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
         style={{
           width: '100%',
           padding: '1rem',
-          background: ORANGE,
+          background: (isTrivia ? !input.trim() : isMulti ? multiInputs.some(i => !i.trim()) : !selected) ? 'rgba(244,135,23,0.3)' : ORANGE,
           color: CREAM,
           border: 'none',
           borderRadius: 12,
@@ -825,8 +804,7 @@ function QuestionScreen({ question, questionNumber, total, onAnswer }) {
           fontWeight: 700,
           cursor: 'pointer',
           fontFamily: 'Inter, sans-serif',
-          opacity: (isTrivia ? !input.trim() : isMulti ? multiInputs.some(i => !i.trim()) : !selected) ? 0.35 : 1,
-          transition: 'opacity 0.15s'
+          transition: 'background 0.15s'
         }}
       >
         {questionNumber === 4 ? 'See results →' : 'Next question →'}
